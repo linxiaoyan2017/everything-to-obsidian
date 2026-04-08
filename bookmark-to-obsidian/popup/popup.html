@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bookmark to Obsidian</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <!-- ─── Header ─────────────────────────────────── -->
+  <header class="header">
+    <span class="header-logo">📖</span>
+    <span class="header-title">Bookmark to Obsidian</span>
+    <a href="#" id="btn-options" class="header-settings" title="设置">⚙️</a>
+  </header>
+
+  <!-- ─── 目录授权状态栏 ──────────────────────────── -->
+  <div id="dir-status" class="dir-status dir-status--unknown">
+    <span id="dir-status-text">正在检查目录授权...</span>
+    <button id="btn-pick-dir" class="btn btn--ghost btn--sm" style="display:none">授权目录</button>
+  </div>
+
+  <!-- ─── 主内容区（默认视图） ─────────────────────── -->
+  <main id="view-main">
+    <!-- 保存当前页面 -->
+    <section class="card">
+      <h2 class="card-title">🌐 保存当前页面</h2>
+      <div class="depth-selector">
+        <label class="radio-label">
+          <input type="radio" name="save-mode" value="summary" />
+          <span>摘要</span>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="save-mode" value="full" checked />
+          <span>完整正文</span>
+        </label>
+      </div>
+      <button id="btn-save-page" class="btn btn--primary btn--block">立即保存</button>
+      <div id="save-result" class="result-msg" style="display:none"></div>
+    </section>
+
+    <!-- 批量导入收藏夹 -->
+    <section class="card">
+      <h2 class="card-title">
+        📚 批量导入收藏夹
+        <button id="btn-expand-bookmarks" class="btn btn--ghost btn--sm">展开选择</button>
+      </h2>
+
+      <!-- 收藏夹树（折叠状态） -->
+      <div id="bookmark-panel" style="display:none">
+        <div class="depth-selector">
+          <label class="radio-label">
+            <input type="radio" name="import-mode" value="summary" checked />
+            <span>摘要</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="import-mode" value="full" />
+            <span>完整正文</span>
+          </label>
+        </div>
+        <div id="bookmark-tree" class="bookmark-tree">
+          <div class="loading-hint">正在加载收藏夹...</div>
+        </div>
+        <div class="import-actions">
+          <span id="selected-count" class="selected-count">已选 0 个书签</span>
+          <button id="btn-start-import" class="btn btn--primary">开始导入</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ─── 进度视图（批量导入时切换） ──────────────── -->
+  <main id="view-progress" style="display:none">
+    <section class="card">
+      <h2 class="card-title">📥 正在导入...</h2>
+      <div class="progress-bar-wrap">
+        <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+      </div>
+      <div id="progress-label" class="progress-label">0 / 0</div>
+
+      <div id="progress-log" class="progress-log"></div>
+
+      <div id="import-summary" class="import-summary" style="display:none"></div>
+
+      <div class="import-actions">
+        <button id="btn-cancel-import" class="btn btn--danger">取消</button>
+        <button id="btn-import-done" class="btn btn--primary" style="display:none">完成</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- 第三方库 -->
+  <script src="../lib/turndown.min.js"></script>
+  <!-- 辅助模块 -->
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

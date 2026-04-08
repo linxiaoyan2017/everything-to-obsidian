@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Bookmark to Obsidian",
+  "version": "1.0.0",
+  "description": "一键将 Chrome 收藏夹和当前页面提取为 Markdown，导入 Obsidian 知识库",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Bookmark to Obsidian"
+  },
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [],
+  "permissions": [
+    "bookmarks",
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/readability.min.js", "lib/turndown.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

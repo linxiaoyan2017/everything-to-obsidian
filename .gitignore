@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+
+# Node
+node_modules/
+
+# 系统临时文件
+*.log
