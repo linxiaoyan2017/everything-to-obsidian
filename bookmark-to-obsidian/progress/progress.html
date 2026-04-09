@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>导入进度 — Everything to Obsidian</title>
+  <link rel="stylesheet" href="progress.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="logo">🐝</span>
+      <h1 class="title" id="title">📥 批量导入中…</h1>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-track">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <span class="progress-label" id="progress-label">0 / 0</span>
+    </div>
+
+    <div class="processing-hint" id="processing-hint"></div>
+
+    <div class="log-box" id="progress-log"></div>
+
+    <div class="summary" id="import-summary" style="display:none"></div>
+
+    <div class="actions">
+      <button class="btn btn--danger" id="btn-cancel" style="display:none">取消导入</button>
+      <button class="btn btn--primary" id="btn-close" style="display:none">关闭窗口</button>
+    </div>
+  </div>
+  <script src="progress.js" type="module"></script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Bookmark to Obsidian",
+  "name": "Everything to Obsidian",
   "version": "1.0.0",
-  "description": "一键将 Chrome 收藏夹和当前页面提取为 Markdown，导入 Obsidian 知识库",
+  "description": "将网页、收藏夹批量提取为 Markdown，一键导入本地 Obsidian 知识库",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -10,7 +10,7 @@
   },
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "Bookmark to Obsidian"
+    "default_title": "Everything to Obsidian"
   },
   "options_page": "options/options.html",
   "background": {
@@ -31,7 +31,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["lib/readability.min.js", "lib/turndown.min.js"],
+      "resources": ["lib/readability.min.js", "lib/turndown.min.js", "progress/progress.html"],
       "matches": ["<all_urls>"]
     }
   ]

@@ -1,4 +1,4 @@
-# 📖 Bookmark to Obsidian
+# 📖 Everything to Obsidian
 
 将 Chrome 收藏夹和当前网页一键提取为 Markdown，直接写入本地 Obsidian 知识库。
 

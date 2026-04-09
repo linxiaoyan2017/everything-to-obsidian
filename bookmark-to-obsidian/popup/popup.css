@@ -1,4 +1,4 @@
-/* popup.css — Bookmark to Obsidian 插件样式 */
+/* popup.css — Everything to Obsidian 插件样式 */
 
 /* ─── 变量 ───────────────────────────────────────── */
 :root {
@@ -75,6 +75,8 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius);
 }
 .card + .card { margin-top: 0; }
+.card--save   { border-left: 3px solid #7c6af5; }
+.card--import { border-left: 3px solid #3ecfcf; }
 
 .card-title {
   display: flex;
@@ -170,6 +172,39 @@ a:hover { text-decoration: underline; }
 .folder-name { flex: 1; font-size: 12px; }
 .folder-count { font-size: 11px; color: var(--color-text-muted); }
 .folder-children { padding-left: 16px; }
+
+/* 书签叶子节点 */
+.bookmark-leaf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px 3px 16px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.bookmark-leaf:hover { background: var(--color-bg-hover); }
+.bookmark-leaf:has(.leaf-checkbox:checked) { color: var(--color-text); }
+
+.leaf-checkbox {
+  flex-shrink: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.leaf-icon {
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.leaf-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ─── 导入操作区 ──────────────────────────────────── */
 .import-actions {

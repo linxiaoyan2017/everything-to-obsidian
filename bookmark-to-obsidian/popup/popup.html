@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bookmark to Obsidian</title>
+  <title>Everything to Obsidian</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
   <!-- ─── Header ─────────────────────────────────── -->
   <header class="header">
     <span class="header-logo">📖</span>
-    <span class="header-title">Bookmark to Obsidian</span>
+    <span class="header-title">Everything to Obsidian</span>
     <a href="#" id="btn-options" class="header-settings" title="设置">⚙️</a>
   </header>
 
@@ -23,7 +23,7 @@
   <!-- ─── 主内容区（默认视图） ─────────────────────── -->
   <main id="view-main">
     <!-- 保存当前页面 -->
-    <section class="card">
+    <section class="card card--save">
       <h2 class="card-title">🌐 保存当前页面</h2>
       <div class="depth-selector">
         <label class="radio-label">
@@ -40,14 +40,11 @@
     </section>
 
     <!-- 批量导入收藏夹 -->
-    <section class="card">
-      <h2 class="card-title">
-        📚 批量导入收藏夹
-        <button id="btn-expand-bookmarks" class="btn btn--ghost btn--sm">展开选择</button>
-      </h2>
+    <section class="card card--import">
+      <h2 class="card-title">📚 批量导入收藏夹</h2>
 
-      <!-- 收藏夹树（折叠状态） -->
-      <div id="bookmark-panel" style="display:none">
+      <!-- 收藏夹树（默认展开） -->
+      <div id="bookmark-panel">
         <div class="depth-selector">
           <label class="radio-label">
             <input type="radio" name="import-mode" value="summary" checked />

@@ -96,19 +96,43 @@ export function sanitizeFilename(title) {
 // ─── 2.4 写入 Markdown 文件 ───────────────────────────────────
 
 /**
- * 在授权目录的指定子目录下写入 .md 文件（子目录不存在时自动创建，同名文件覆盖）
- * @param {FileSystemDirectoryHandle} dirHandle  授权的根目录句柄
- * @param {string} subDir  子目录名（如 "Clippings"）
- * @param {string} filename  文件名（不含 .md 后缀）
- * @param {string} content  Markdown 内容
+ * 枚举已授权根目录下的所有直接子目录，返回名称数组（按字母顺序）
+ * @param {FileSystemDirectoryHandle} dirHandle
+ * @returns {Promise<string[]>}
  */
-export async function writeMarkdownFile(dirHandle, subDir, filename, content) {
-  // 自动创建子目录
-  const subDirHandle = await dirHandle.getDirectoryHandle(subDir, { create: true });
+export async function listSubDirectories(dirHandle) {
+  const names = [];
+  for await (const [name, entry] of dirHandle.entries()) {
+    if (entry.kind === 'directory') {
+      names.push(name);
+    }
+  }
+  return names.sort((a, b) => a.localeCompare(b, 'zh'));
+}
+
+/**
+ * 写入 Markdown 文件，支持多级子目录
+ * @param {FileSystemDirectoryHandle} dirHandle  根目录句柄
+ * @param {string | string[]} subPath  子目录：字符串（单级）或字符串数组（多级路径）
+ * @param {string} filename  文件名（不含扩展名）
+ * @param {string} content   文件内容
+ * @returns {Promise<string>}  实际写入的文件名
+ */
+export async function writeMarkdownFile(dirHandle, subPath, filename, content) {
+  // 支持字符串（单级）和数组（多级）
+  const segments = Array.isArray(subPath) ? subPath : [subPath];
+
+  // 逐级创建目录
+  let currentHandle = dirHandle;
+  for (const seg of segments) {
+    if (seg) {
+      currentHandle = await currentHandle.getDirectoryHandle(seg, { create: true });
+    }
+  }
 
   // 创建或覆盖文件
   const safeFilename = sanitizeFilename(filename) + '.md';
-  const fileHandle = await subDirHandle.getFileHandle(safeFilename, { create: true });
+  const fileHandle = await currentHandle.getFileHandle(safeFilename, { create: true });
   const writable = await fileHandle.createWritable();
   await writable.write(content);
   await writable.close();

@@ -21,23 +21,15 @@ const viewProgress = document.getElementById('view-progress');
 const btnSavePage   = document.getElementById('btn-save-page');
 const saveResult    = document.getElementById('save-result');
 
-const btnExpandBM   = document.getElementById('btn-expand-bookmarks');
-const bookmarkPanel = document.getElementById('bookmark-panel');
 const bookmarkTree  = document.getElementById('bookmark-tree');
 const selectedCount = document.getElementById('selected-count');
 const btnStartImport= document.getElementById('btn-start-import');
 
-const progressBar    = document.getElementById('progress-bar');
-const progressLabel  = document.getElementById('progress-label');
-const progressLog    = document.getElementById('progress-log');
-const importSummary  = document.getElementById('import-summary');
-const btnCancelImport= document.getElementById('btn-cancel-import');
-const btnImportDone  = document.getElementById('btn-import-done');
-
 // ─── 状态 ─────────────────────────────────────────────────────
 let dirHandle = null;
 let bookmarkTreeData = null;
-let selectedFolderIds = new Set();
+let selectedFolderIds = new Set();  // 勾选的文件夹 id
+let selectedLeafUrls  = new Map();  // 单独勾选的叶子：url → bookmark 对象
 let cancelSignal = { cancelled: false };
 
 // ─── 初始化 ───────────────────────────────────────────────────
@@ -46,10 +38,22 @@ async function init() {
   btnPickDir.addEventListener('click', onPickDir);
   btnOptions.addEventListener('click', () => chrome.runtime.openOptionsPage());
   btnSavePage.addEventListener('click', onSavePage);
-  btnExpandBM.addEventListener('click', onExpandBookmarks);
   btnStartImport.addEventListener('click', onStartImport);
-  btnCancelImport.addEventListener('click', onCancelImport);
-  btnImportDone.addEventListener('click', () => showView('main'));
+
+  // 默认展开：直接加载收藏夹树
+  loadBookmarksIntoTree();
+}
+
+async function loadBookmarksIntoTree() {
+  if (bookmarkTreeData) return; // 已加载过则跳过
+  if (!bookmarkTree) { console.error('[popup] #bookmark-tree not found in DOM'); return; }
+  bookmarkTree.innerHTML = '<div class="loading-hint">正在加载...</div>';
+  try {
+    bookmarkTreeData = await loadBookmarkTree();
+    renderTree(bookmarkTreeData);
+  } catch (e) {
+    bookmarkTree.innerHTML = `<div class="loading-hint" style="color:var(--color-danger)">加载失败: ${e.message}</div>`;
+  }
 }
 
 // ─── 6.6 目录状态 ─────────────────────────────────────────────
@@ -145,31 +149,16 @@ function showSaveResult(msg, type) {
 }
 
 // ─── 6.4 收藏夹树形渲染 ───────────────────────────────────────
-async function onExpandBookmarks() {
-  const isOpen = bookmarkPanel.style.display !== 'none';
-  if (isOpen) {
-    bookmarkPanel.style.display = 'none';
-    btnExpandBM.textContent = '展开选择';
-    return;
-  }
-
-  bookmarkPanel.style.display = 'block';
-  btnExpandBM.textContent = '收起';
-
-  if (!bookmarkTreeData) {
-    bookmarkTree.innerHTML = '<div class="loading-hint">正在加载...</div>';
-    try {
-      bookmarkTreeData = await loadBookmarkTree();
-      renderTree(bookmarkTreeData);
-    } catch (e) {
-      bookmarkTree.innerHTML = `<div class="loading-hint" style="color:var(--color-danger)">加载失败: ${e.message}</div>`;
-    }
-  }
-}
 
 function renderTree(nodes) {
   bookmarkTree.innerHTML = '';
-  for (const node of nodes) {
+  // Chrome 书签树顶层是一个无标题的虚拟根节点（id:"0"），
+  // 直接跳过它，展示其子节点（书签栏、其他书签等）作为第一层
+  const topNodes = (nodes.length === 1 && !nodes[0].url && !nodes[0].title)
+    ? (nodes[0].children || [])
+    : nodes;
+
+  for (const node of topNodes) {
     const el = buildFolderNode(node);
     if (el) bookmarkTree.appendChild(el);
   }
@@ -180,11 +169,42 @@ function countBookmarks(node) {
   return (node.children || []).reduce((sum, c) => sum + countBookmarks(c), 0);
 }
 
-function buildFolderNode(node) {
-  if (node.url) return null; // 只显示文件夹
-  const children = (node.children || []).filter(c => !c.url);
+function buildFolderNode(node, parentPath = []) {
+  // ── 书签叶子节点（有 url）──
+  if (node.url) {
+    const leaf = document.createElement('div');
+    leaf.className = 'bookmark-leaf';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'leaf-checkbox';
+    cb.dataset.url = node.url;
+
+    leaf.addEventListener('click', () => {
+      cb.checked = !cb.checked;
+      toggleLeaf(node, parentPath, cb.checked);
+    });
+    cb.addEventListener('click', (e) => e.stopPropagation());
+    cb.addEventListener('change', () => toggleLeaf(node, parentPath, cb.checked));
+
+    const icon = document.createElement('span');
+    icon.className = 'leaf-icon';
+    icon.textContent = '🔗';
+
+    const title = document.createElement('span');
+    title.className = 'leaf-title';
+    title.title = node.url;
+    title.textContent = node.title || node.url;
+
+    leaf.appendChild(cb);
+    leaf.appendChild(icon);
+    leaf.appendChild(title);
+    return leaf;
+  }
+
+  // ── 文件夹节点 ──
   const total = countBookmarks(node);
-  if (total === 0 && children.length === 0) return null;
+  if (total === 0 && (node.children || []).length === 0) return null;
 
   const item = document.createElement('div');
   item.className = 'folder-item';
@@ -206,7 +226,7 @@ function buildFolderNode(node) {
   const toggle = row.querySelector('.folder-toggle');
   const checkbox = row.querySelector('input[type=checkbox]');
 
-  // 展开/折叠
+  // 展开/折叠箭头
   toggle.addEventListener('click', (e) => {
     e.stopPropagation();
     const open = childrenWrap.style.display !== 'none';
@@ -214,19 +234,25 @@ function buildFolderNode(node) {
     toggle.classList.toggle('open', !open);
   });
 
-  // 勾选
+  // 勾选框
+  checkbox.addEventListener('click', (e) => e.stopPropagation());
   checkbox.addEventListener('change', () => {
-    if (checkbox.checked) {
-      selectedFolderIds.add(node.id);
-    } else {
-      selectedFolderIds.delete(node.id);
-    }
-    updateSelectedCount();
+    toggleSelectionRecursive(node, checkbox.checked);
   });
 
-  // 渲染子文件夹
+  // 整行点击切换勾选
+  row.addEventListener('click', () => {
+    const newChecked = !checkbox.checked;
+    checkbox.checked = newChecked;
+    toggleSelectionRecursive(node, newChecked);
+  });
+
+  // 构建当前文件夹的路径，传给子叶子节点
+  const currentPath = node.title ? [...parentPath, node.title] : parentPath;
+
+  // 渲染所有子节点（包括书签叶子）
   for (const child of node.children || []) {
-    const childEl = buildFolderNode(child);
+    const childEl = buildFolderNode(child, currentPath);
     if (childEl) childrenWrap.appendChild(childEl);
   }
 
@@ -236,10 +262,56 @@ function buildFolderNode(node) {
   return item;
 }
 
+/** 切换单个叶子书签的选中状态 */
+function toggleLeaf(node, parentPath, checked) {
+  if (checked) {
+    selectedLeafUrls.set(node.url, { url: node.url, title: node.title || node.url, path: [...parentPath], tags: [...parentPath] });
+  } else {
+    selectedLeafUrls.delete(node.url);
+  }
+  updateSelectedCount();
+}
+
+/**
+ * 递归勾选/取消节点及其所有子文件夹
+ * 同时同步 DOM 中对应 checkbox 的视觉状态
+ */
+function toggleSelectionRecursive(node, checked) {
+  if (node.url) return; // 跳过书签叶子
+
+  // 更新 state
+  if (checked) {
+    selectedFolderIds.add(node.id);
+  } else {
+    selectedFolderIds.delete(node.id);
+  }
+
+  // 同步 DOM checkbox 视觉状态
+  const domCheckbox = bookmarkTree.querySelector(`input[data-id="${node.id}"]`);
+  if (domCheckbox) domCheckbox.checked = checked;
+
+  // 递归处理子节点
+  for (const child of node.children || []) {
+    if (!child.url) {
+      // 子文件夹：递归处理
+      toggleSelectionRecursive(child, checked);
+    } else {
+      // 叶子书签：同步 DOM checkbox 视觉状态
+      const leafCb = bookmarkTree.querySelector(`.leaf-checkbox[data-url="${CSS.escape(child.url)}"]`);
+      if (leafCb) leafCb.checked = checked;
+    }
+  }
+
+  updateSelectedCount();
+}
+
 function updateSelectedCount() {
   if (!bookmarkTreeData) return;
-  const bookmarks = collectUrlsFromFolders(selectedFolderIds, bookmarkTreeData);
-  selectedCount.textContent = `已选 ${bookmarks.length} 个书签`;
+  const fromFolders = collectUrlsFromFolders(selectedFolderIds, bookmarkTreeData);
+  // 合并叶子选择，按 url 去重
+  const urlSet = new Set(fromFolders.map(b => b.url));
+  const extra = [...selectedLeafUrls.values()].filter(b => !urlSet.has(b.url));
+  selectedCount.textContent = `已选 ${fromFolders.length + extra.length} 个书签`;
 }
 
 function escapeHtml(str) {
@@ -253,90 +325,109 @@ async function onStartImport() {
     return;
   }
 
-  const bookmarks = collectUrlsFromFolders(selectedFolderIds, bookmarkTreeData || []);
+  // 合并文件夹来源 + 单独勾选的叶子，按 url 去重
+  const fromFolders = collectUrlsFromFolders(selectedFolderIds, bookmarkTreeData || []);
+  const folderUrlSet = new Set(fromFolders.map(b => b.url));
+  const fromLeafs = [...selectedLeafUrls.values()].filter(b => !folderUrlSet.has(b.url));
+  const bookmarks = [...fromFolders, ...fromLeafs];
+
   if (bookmarks.length === 0) {
-    alert('请至少选择一个文件夹');
+    alert('请至少选择一个文件夹或书签');
     return;
   }
 
   const mode = document.querySelector('input[name="import-mode"]:checked')?.value || 'summary';
   const { subDir = 'Clippings' } = await chrome.storage.sync.get({ subDir: 'Clippings' });
 
-  showView('progress');
-  progressLog.innerHTML = '';
-  importSummary.style.display = 'none';
-  btnImportDone.style.display = 'none';
-  btnCancelImport.style.display = 'inline-flex';
   cancelSignal = { cancelled: false };
+  // 重置 session 里的取消标志
+  await chrome.storage.session.set({ importCancelled: false });
 
-  // 8.1 通知 Service Worker 启动保活
+  // 打开独立进度窗口
+  const progressWin = await chrome.windows.create({
+    url: chrome.runtime.getURL('progress/progress.html'),
+    type: 'popup',
+    width: 700,
+    height: 600,
+    focused: true,
+  });
+
+  // 等待进度窗口加载完成再开始推送（给它一点时间注册 onMessage）
+  await new Promise(r => setTimeout(r, 600));
+
+  // 监听来自进度窗口的取消指令（两种方式并存：消息监听 + session 轮询）
+  chrome.runtime.onMessage.addListener(function cancelListener(message) {
+    if (message.type === 'CANCEL_IMPORT') {
+      cancelSignal.cancelled = true;
+      chrome.storage.session.set({ importCancelled: true });
+      chrome.runtime.onMessage.removeListener(cancelListener);
+    }
+  });
+
+  // session 轮询：即使 popup 未关闭也能感知到取消（防止消息丢失）
+  const cancelPoller = setInterval(async () => {
+    const { importCancelled } = await chrome.storage.session.get({ importCancelled: false });
+    if (importCancelled) {
+      cancelSignal.cancelled = true;
+      clearInterval(cancelPoller);
+    }
+  }, 300);
+
+  // 通知 Service Worker 启动保活
   chrome.runtime.sendMessage({ type: 'START_IMPORT' });
 
   let done = 0, skipped = 0, failed = 0;
   const total = bookmarks.length;
 
-  progressBar.style.width = '0%';
-  progressLabel.textContent = `0 / ${total}`;
+  // 初始化进度窗口进度条
+  broadcastProgress(done, skipped, failed, total);
 
   const tasks = bookmarks.map((bm) => async () => {
+    if (cancelSignal.cancelled) return;
+
+    // 告知进度窗口当前正在处理哪条
+    chrome.runtime.sendMessage({ type: 'IMPORT_PROCESSING', title: bm.title || bm.url });
+
     const result = await processBookmark(bm, mode);
     if (result.skipped) {
       skipped++;
-      addLog(`⏭️ ${bm.title || bm.url}（${result.reason || '跳过'}）`, 'skip');
+      broadcastLog(`⏭️ ${bm.title || bm.url}（${result.reason || '跳过'}）`, 'skip');
     } else {
       try {
         const mdContent = buildMarkdownFile(result.meta, result.contentHtml, mode);
-        await writeMarkdownFile(dirHandle, subDir, result.meta.title, mdContent);
+        const writePath = bm.path && bm.path.length > 0 ? [subDir, ...bm.path] : [subDir];
+        await writeMarkdownFile(dirHandle, writePath, result.meta.title, mdContent);
         done++;
-        addLog(`✅ ${result.meta.title}`, 'success');
+        broadcastLog(`✅ ${result.meta.title}`, 'success');
       } catch (e) {
         failed++;
-        addLog(`❌ ${bm.title || bm.url}（写入失败: ${e.message}）`, 'error');
+        broadcastLog(`❌ ${bm.title || bm.url}（写入失败: ${e.message}）`, 'error');
       }
     }
 
-    const processed = done + skipped + failed;
-    progressBar.style.width = `${Math.round(processed / total * 100)}%`;
-    progressLabel.textContent = `${processed} / ${total}`;
-
-    // 同步任务状态到 storage
-    chrome.storage.session.set({ importProgress: { done, skipped, failed, total } });
-
+    broadcastProgress(done, skipped, failed, total);
+    // 同步到 session storage（进度窗口刷新时可恢复）
+    chrome.storage.session.set({ importProgress: { done, skipped, failed, total, finished: false } });
     return result;
   });
 
   await runConcurrent(tasks, CONCURRENCY, null, cancelSignal);
 
-  // 完成
+  // 完成：通知进度窗口
   const cancelled = cancelSignal.cancelled;
-  importSummary.innerHTML = cancelled
-    ? `已取消<br>✅ 已完成 ${done} 条 &nbsp;⏭️ 跳过 ${skipped} 条 &nbsp;❌ 失败 ${failed} 条`
-    : `导入完成！<br>✅ 成功 ${done} 条 &nbsp;⏭️ 跳过 ${skipped} 条 &nbsp;❌ 失败 ${failed} 条`;
-  importSummary.style.display = 'block';
-  btnCancelImport.style.display = 'none';
-  btnImportDone.style.display = 'inline-flex';
-
-  const titleEl = viewProgress.querySelector('.card-title');
-  if (titleEl) titleEl.textContent = cancelled ? '📥 已取消' : '📥 导入完成';
+  chrome.runtime.sendMessage({ type: 'IMPORT_DONE', cancelled, done, skipped, failed });
+  chrome.storage.session.set({ importProgress: { done, skipped, failed, total, finished: true, cancelled } });
+  chrome.runtime.sendMessage({ type: 'STOP_IMPORT' });
 }
 
-function addLog(msg, type) {
-  const item = document.createElement('div');
-  item.className = `log-item ${type}`;
-  item.textContent = msg;
-  progressLog.appendChild(item);
-  progressLog.scrollTop = progressLog.scrollHeight;
+/** 向所有扩展页面广播进度更新 */
+function broadcastProgress(done, skipped, failed, total) {
+  chrome.runtime.sendMessage({ type: 'IMPORT_PROGRESS', done, skipped, failed, total });
 }
 
-function onCancelImport() {
-  cancelSignal.cancelled = true;
-  btnCancelImport.disabled = true;
-  btnCancelImport.textContent = '取消中...';
-}
-
-function showView(name) {
-  viewMain.style.display = name === 'main' ? 'block' : 'none';
-  viewProgress.style.display = name === 'progress' ? 'block' : 'none';
+/** 向所有扩展页面广播日志条目 */
+function broadcastLog(text, logType) {
+  chrome.runtime.sendMessage({ type: 'IMPORT_LOG', text, logType });
 }
 
 // ─── 启动 ─────────────────────────────────────────────────────

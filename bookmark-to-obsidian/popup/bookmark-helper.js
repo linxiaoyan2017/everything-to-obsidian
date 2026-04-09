@@ -32,43 +32,53 @@ export function loadBookmarkTree() {
 export function collectUrlsFromFolders(selectedFolderIds, tree) {
   const results = [];
 
-  function traverse(node, pathTags) {
+  function traverse(node, pathSegments) {
     if (!node) return;
 
     if (node.url) {
-      // 这是书签叶子节点，但 traverse 只负责寻找选中的文件夹
-      // 书签收集只能由 traverseCollect 完成，这里直接跳过
+      // 叶子书签，只能由 traverseCollect 处理，这里跳过
       return;
     }
 
-    // 这是文件夹
+    // 文件夹节点
     const children = node.children || [];
     const folderName = node.title || '';
     const isSelected = selectedFolderIds.has(node.id);
 
     if (isSelected) {
-      // 选中的文件夹：把此文件夹名加入 tags，递归收集所有子项
-      const newTags = folderName ? [...pathTags, folderName] : pathTags;
+      // 选中的文件夹：从该文件夹名开始构建路径
+      const newPath = folderName ? [...pathSegments, folderName] : pathSegments;
       for (const child of children) {
-        traverseCollect(child, newTags);
+        traverseCollect(child, newPath);
       }
     } else {
-      // 未选中，继续往下找是否有选中的子文件夹
+      // 未选中，继续往下找选中的子文件夹
       for (const child of children) {
-        traverse(child, pathTags);
+        traverse(child, pathSegments);
       }
     }
   }
 
-  function traverseCollect(node, tags) {
+  /**
+   * 递归收集书签，path 为从选中文件夹开始的相对路径数组
+   * 书签叶子节点：path 就是它所在的目录层级
+   * tags 从 path 自动生成
+   */
+  function traverseCollect(node, path) {
     if (!node) return;
     if (node.url) {
-      results.push({ url: node.url, title: node.title || node.url, tags: [...tags] });
+      results.push({
+        url: node.url,
+        title: node.title || node.url,
+        path: [...path],          // 目录层级，用于写文件时创建子目录
+        tags: [...path],          // 同时作为 YAML tags
+      });
       return;
     }
-    const newTags = node.title ? [...tags, node.title] : tags;
+    // 子文件夹：继续深入，路径追加文件夹名
+    const newPath = node.title ? [...path, node.title] : path;
     for (const child of node.children || []) {
-      traverseCollect(child, newTags);
+      traverseCollect(child, newPath);
     }
   }
 
@@ -125,20 +135,20 @@ export async function processBookmark(bookmark, mode) {
     setTimeout(() => reject(new Error('TIMEOUT')), TIMEOUT_MS)
   );
 
-  const fetchPromise = (async () => {
-    // 打开后台标签页（不激活，用户不感知）
+  let createdTabId = null;
+
+  const fetchPromiseWithTabTracking = (async () => {
     const tab = await new Promise((resolve, reject) => {
       chrome.tabs.create({ url: bookmark.url, active: false }, (tab) => {
         if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
         else resolve(tab);
       });
     });
+    createdTabId = tab.id;
 
-    // 等待页面加载完成
     await waitForTabLoad(tab.id, TIMEOUT_MS);
 
-    // 注入 Readability + extractor
-    const results = await chrome.scripting.executeScript({
+    await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       files: ['lib/readability.min.js'],
     });
@@ -148,13 +158,11 @@ export async function processBookmark(bookmark, mode) {
       files: ['content/extractor.js'],
     });
 
-    // 关闭标签页
     chrome.tabs.remove(tab.id);
+    createdTabId = null;
 
     const data = extracted[0]?.result;
-    if (!data || !data.success) {
-      throw new Error('EXTRACT_FAILED');
-    }
+    if (!data || !data.success) throw new Error('EXTRACT_FAILED');
 
     return {
       meta: {
@@ -171,10 +179,14 @@ export async function processBookmark(bookmark, mode) {
   })();
 
   try {
-    return await Promise.race([fetchPromise, timeoutPromise]);
+    return await Promise.race([fetchPromiseWithTabTracking, timeoutPromise]);
   } catch (err) {
-    // 5.5 死链处理：记录原因，标记跳过
-    const reason = err.message === 'TIMEOUT' ? '超时（>15s）' : err.message;
+    // 超时或失败：确保关闭遗留的标签页
+    if (createdTabId !== null) {
+      chrome.tabs.remove(createdTabId).catch(() => {});
+      createdTabId = null;
+    }
+    const reason = err.message === 'TIMEOUT' ? `超时（>${TIMEOUT_MS / 1000}s）` : err.message;
     return {
       meta: { title: bookmark.title, source: bookmark.url, tags: bookmark.tags },
       contentHtml: '',
