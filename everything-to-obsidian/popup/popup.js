@@ -3,7 +3,7 @@
  * 整合 fs-helper、markdown-helper、bookmark-helper
  */
 
-import { pickDirectory, getDirectoryHandle, writeMarkdownFile } from './fs-helper.js';
+import { pickDirectory, getDirectoryHandle, reauthorizeHandle, writeMarkdownFile } from './fs-helper.js';
 import { buildMarkdownFile } from './markdown-helper.js';
 import { loadBookmarkTree, collectUrlsFromFolders, runConcurrent, processBookmark } from './bookmark-helper.js';
 
@@ -63,26 +63,48 @@ async function refreshDirStatus() {
 
   try {
     const result = await getDirectoryHandle();
-    if (result) {
-      dirHandle = result.handle;
-      dirStatus.className = 'dir-status dir-status--granted';
-      dirStatusText.textContent = `📁 已授权: ${result.name}`;
-    } else {
+    if (!result) {
+      // 从未授权过
       dirHandle = null;
       dirStatus.className = 'dir-status dir-status--denied';
       dirStatusText.textContent = '⚠️ 未授权目录';
+      btnPickDir.textContent = '授权目录';
       btnPickDir.style.display = 'inline-flex';
+    } else if (result.needsReauth) {
+      // 已有 handle 但权限已失效（浏览器安全机制），需用户点击恢复
+      dirHandle = null; // 先置空，恢复后再赋值
+      dirStatus.className = 'dir-status dir-status--denied';
+      dirStatusText.textContent = `📁 ${result.name}（需点击恢复授权）`;
+      btnPickDir.textContent = '恢复授权';
+      btnPickDir.style.display = 'inline-flex';
+    } else {
+      // 权限有效
+      dirHandle = result.handle;
+      dirStatus.className = 'dir-status dir-status--granted';
+      dirStatusText.textContent = `已授权: ${result.name}`;
+      btnPickDir.style.display = 'none';
     }
   } catch {
     dirHandle = null;
     dirStatus.className = 'dir-status dir-status--denied';
     dirStatusText.textContent = '⚠️ 未授权目录';
+    btnPickDir.textContent = '授权目录';
     btnPickDir.style.display = 'inline-flex';
   }
 }
 
 async function onPickDir() {
   try {
+    // 先尝试用已有 handle 恢复（避免让用户重新选目录）
+    const restored = await reauthorizeHandle();
+    if (restored) {
+      dirHandle = restored.handle;
+      dirStatus.className = 'dir-status dir-status--granted';
+      dirStatusText.textContent = `已授权: ${restored.name}`;
+      btnPickDir.style.display = 'none';
+      return;
+    }
+    // 没有已有 handle 或恢复失败，弹出目录选择器
     dirHandle = await pickDirectory();
     await refreshDirStatus();
   } catch (e) {

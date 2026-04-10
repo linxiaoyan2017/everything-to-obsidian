@@ -59,21 +59,37 @@ export async function pickDirectory() {
  * 从 IndexedDB 读取已存 handle，验证权限有效性
  * @returns {{ handle: FileSystemDirectoryHandle, name: string } | null}
  */
+/**
+ * 从 IndexedDB 读取已存 handle，仅查询权限（不弹授权弹窗）
+ * 适合页面加载时自动调用，无需用户手势
+ * @returns {{ handle, name, needsReauth: boolean } | null}
+ */
 export async function getDirectoryHandle() {
   const handle = await loadHandle();
   if (!handle) return null;
 
   const permission = await handle.queryPermission({ mode: 'readwrite' });
   if (permission === 'granted') {
-    return { handle, name: handle.name };
+    return { handle, name: handle.name, needsReauth: false };
   }
 
-  // 权限已失效，尝试重新请求（需要在用户手势上下文中调用）
+  // 权限已失效（prompt 状态），告知调用方需要用户手势才能恢复
+  // 不在这里调用 requestPermission，因为此时可能不在用户手势上下文
+  return { handle, name: handle.name, needsReauth: true };
+}
+
+/**
+ * 在用户手势上下文中恢复权限（点击按钮时调用）
+ * @returns {{ handle, name } | null}
+ */
+export async function reauthorizeHandle() {
+  const handle = await loadHandle();
+  if (!handle) return null;
+
   const requested = await handle.requestPermission({ mode: 'readwrite' });
   if (requested === 'granted') {
     return { handle, name: handle.name };
   }
-
   return null;
 }
 
