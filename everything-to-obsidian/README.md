@@ -79,6 +79,8 @@ React 18 带来了并发特性...
 ```
 
 ## ⚙️ 使用说明
+<img width="722" height="804" alt="image" src="https://github.com/user-attachments/assets/4dd05a4e-928e-4cde-be77-69dc6ac376bf" />
+
 
 ### 保存当前页面
 
