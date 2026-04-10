@@ -1,20 +1,36 @@
 /* popup.css — Everything to Obsidian 插件样式 */
 
-/* ─── 变量 ───────────────────────────────────────── */
+/* ─── 变量（蜜蜂琥珀黄浅色效率工具主题） ─────────── */
 :root {
-  --color-bg: #1e1e2e;
-  --color-bg-card: #2a2a3e;
-  --color-bg-hover: #32324a;
-  --color-border: #3a3a55;
-  --color-primary: #7c6af5;
-  --color-primary-hover: #6a58e0;
-  --color-danger: #e05f5f;
-  --color-success: #5fc87e;
-  --color-warning: #f0a05a;
-  --color-text: #e0e0f0;
-  --color-text-muted: #9090b0;
-  --color-progress-track: #2a2a3e;
-  --radius: 8px;
+  /* 背景 */
+  --color-bg:           #FAFAF9;   /* 极浅暖灰 Stone-50 */
+  --color-bg-card:      #FFFFFF;   /* 纯白卡片 */
+  --color-bg-hover:     #FEF3C7;   /* Amber-100 hover */
+
+  /* 边框 */
+  --color-border:       #E7E5E4;   /* Stone-200 */
+  --color-border-light: #F5F5F4;   /* Stone-100 */
+
+  /* 主强调色（蜜蜂琥珀黄） */
+  --color-primary:       #F59E0B;  /* Amber-500 */
+  --color-primary-hover: #D97706;  /* Amber-600 */
+
+  /* 文字 */
+  --color-text:          #1C1917;  /* Stone-900 暖棕黑 */
+  --color-text-muted:    #78716C;  /* Stone-500 */
+  --color-text-subtle:   #A8A29E;  /* Stone-400 */
+
+  /* 状态色 */
+  --color-success:       #16A34A;  /* Green-600 */
+  --color-danger:        #DC2626;  /* Red-600 */
+  --color-warning:       #D97706;  /* Amber-600 */
+  --color-warning-bg:    #FEF9C3;  /* Yellow-100 */
+
+  /* 进度条 */
+  --color-progress-track: #E7E5E4;
+
+  /* 通用 */
+  --radius:    8px;
   --radius-sm: 5px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
@@ -33,6 +49,9 @@ body {
   background: var(--color-bg);
 }
 
+/* 全局 accent-color 统一为琥珀黄 */
+* { accent-color: var(--color-primary); }
+
 a { color: var(--color-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
@@ -40,31 +59,84 @@ a:hover { text-decoration: underline; }
 .header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid #F0EDE8;
   background: var(--color-bg-card);
   position: sticky;
   top: 0;
   z-index: 10;
 }
-.header-logo { font-size: 18px; }
-.header-title { font-weight: 600; font-size: 14px; flex: 1; }
-.header-settings { font-size: 16px; opacity: 0.7; transition: opacity .2s; }
-.header-settings:hover { opacity: 1; text-decoration: none; }
 
-/* ─── 目录状态栏 ──────────────────────────────────── */
+/* bee.png 圆形图标，有呼吸感 */
+.header-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.header-title {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+  color: var(--color-text);
+}
+
+.header-settings {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  transition: all .15s;
+  white-space: nowrap;
+}
+.header-settings:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+  background: var(--color-bg-hover);
+  text-decoration: none;
+}
+
+/* ─── 目录状态栏（低调化） ────────────────────────── */
 .dir-status {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
+  padding: 5px 14px;
   font-size: 12px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border-light);
 }
-.dir-status--granted { background: rgba(95, 200, 126, 0.1); color: var(--color-success); }
-.dir-status--denied  { background: rgba(224, 95, 95, 0.1);  color: var(--color-danger); }
-.dir-status--unknown { background: transparent; color: var(--color-text-muted); }
+
+/* 已授权：绿点 + 浅色背景，不抢眼 */
+.dir-status--granted {
+  background: #F0FDF4;
+  color: #15803D;
+}
+.dir-status--granted #dir-status-text::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-success);
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+/* 未授权：琥珀黄浅背景，不用红色 */
+.dir-status--denied {
+  background: var(--color-warning-bg);
+  color: #92400E;
+}
+
+.dir-status--unknown {
+  background: transparent;
+  color: var(--color-text-subtle);
+}
 
 /* ─── 卡片 ───────────────────────────────────────── */
 .card {
@@ -73,10 +145,13 @@ a:hover { text-decoration: underline; }
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(28,25,23,0.04);
 }
 .card + .card { margin-top: 0; }
-.card--save   { border-left: 3px solid #7c6af5; }
-.card--import { border-left: 3px solid #3ecfcf; }
+
+/* 左侧色条与新主题协调：保留但调整为与琥珀黄协调的暖色系 */
+.card--save   { border-left: 3px solid #8B5CF6; }  /* Violet-500，与黄色形成互补 */
+.card--import { border-left: 3px solid var(--color-primary); }  /* 琥珀黄，与主色呼应 */
 
 .card-title {
   display: flex;
@@ -84,6 +159,7 @@ a:hover { text-decoration: underline; }
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
+  color: var(--color-text);
   margin-bottom: 10px;
 }
 
@@ -102,7 +178,7 @@ a:hover { text-decoration: underline; }
   font-size: 12px;
 }
 .radio-label input[type=radio] { accent-color: var(--color-primary); }
-.radio-label:has(input:checked) { color: var(--color-text); }
+.radio-label:has(input:checked) { color: var(--color-text); font-weight: 500; }
 
 /* ─── 按钮 ───────────────────────────────────────── */
 .btn {
@@ -119,16 +195,34 @@ a:hover { text-decoration: underline; }
   transition: background .15s, opacity .15s;
 }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn--primary { background: var(--color-primary); color: #fff; }
-.btn--primary:hover:not(:disabled) { background: var(--color-primary-hover); }
+
+/* 主按钮：琥珀黄底深字（方案A） */
+.btn--primary {
+  background: var(--color-primary);
+  color: #1C1917;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(245,158,11,0.2);
+}
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  box-shadow: 0 2px 6px rgba(245,158,11,0.25);
+}
+
 .btn--danger  { background: var(--color-danger); color: #fff; }
-.btn--danger:hover:not(:disabled)  { background: #c94a4a; }
+.btn--danger:hover:not(:disabled)  { background: #B91C1C; }
+
+/* ghost 按钮：浅色风格 */
 .btn--ghost {
   background: transparent;
   color: var(--color-text-muted);
   border: 1px solid var(--color-border);
 }
-.btn--ghost:hover:not(:disabled) { background: var(--color-bg-hover); color: var(--color-text); }
+.btn--ghost:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+  border-color: var(--color-primary);
+}
+
 .btn--block { width: 100%; }
 .btn--sm { padding: 4px 9px; font-size: 11px; }
 
@@ -140,8 +234,14 @@ a:hover { text-decoration: underline; }
   font-size: 12px;
   line-height: 1.5;
 }
-.result-msg.success { background: rgba(95, 200, 126, 0.12); color: var(--color-success); }
-.result-msg.error   { background: rgba(224, 95, 95, 0.12);  color: var(--color-danger); }
+.result-msg.success {
+  background: #F0FDF4;
+  color: #15803D;
+}
+.result-msg.error {
+  background: #FEF2F2;
+  color: var(--color-danger);
+}
 
 /* ─── 收藏夹树 ───────────────────────────────────── */
 .bookmark-tree {
@@ -151,10 +251,15 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius-sm);
   padding: 4px;
   margin-bottom: 8px;
+  background: var(--color-bg-card);
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
 }
-.loading-hint { padding: 10px; color: var(--color-text-muted); text-align: center; }
+.loading-hint {
+  padding: 10px;
+  color: var(--color-text-subtle);
+  text-align: center;
+}
 
 .folder-item { user-select: none; }
 .folder-row {
@@ -166,11 +271,22 @@ a:hover { text-decoration: underline; }
   cursor: pointer;
 }
 .folder-row:hover { background: var(--color-bg-hover); }
-.folder-toggle { font-size: 10px; width: 12px; transition: transform .15s; }
+.folder-toggle {
+  font-size: 10px;
+  width: 12px;
+  transition: transform .15s;
+  color: var(--color-text-subtle);
+}
 .folder-toggle.open { transform: rotate(90deg); }
+
+/* 文件夹 checkbox 半选状态（indeterminate）- 用琥珀黄表示 */
+.folder-row input[type=checkbox]:indeterminate {
+  accent-color: var(--color-primary);
+  opacity: 0.6;
+}
 .folder-icon { font-size: 13px; }
-.folder-name { flex: 1; font-size: 12px; }
-.folder-count { font-size: 11px; color: var(--color-text-muted); }
+.folder-name { flex: 1; font-size: 12px; color: var(--color-text); }
+.folder-count { font-size: 11px; color: var(--color-text-subtle); }
 .folder-children { padding-left: 16px; }
 
 /* 书签叶子节点 */
@@ -186,7 +302,10 @@ a:hover { text-decoration: underline; }
   border-radius: var(--radius-sm);
 }
 .bookmark-leaf:hover { background: var(--color-bg-hover); }
-.bookmark-leaf:has(.leaf-checkbox:checked) { color: var(--color-text); }
+.bookmark-leaf:has(.leaf-checkbox:checked) {
+  color: var(--color-text);
+  font-weight: 500;
+}
 
 .leaf-checkbox {
   flex-shrink: 0;
@@ -197,7 +316,7 @@ a:hover { text-decoration: underline; }
 .leaf-icon {
   font-size: 11px;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .leaf-title {
@@ -214,7 +333,10 @@ a:hover { text-decoration: underline; }
   margin-top: 8px;
   gap: 8px;
 }
-.selected-count { font-size: 12px; color: var(--color-text-muted); }
+.selected-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
 
 /* ─── 进度视图 ───────────────────────────────────── */
 .progress-bar-wrap {
@@ -226,7 +348,7 @@ a:hover { text-decoration: underline; }
 }
 .progress-bar {
   height: 100%;
-  background: var(--color-primary);
+  background: linear-gradient(90deg, var(--color-primary), #FBBF24);
   border-radius: 3px;
   transition: width .3s ease;
 }
@@ -242,6 +364,7 @@ a:hover { text-decoration: underline; }
   overflow-y: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
+  background: var(--color-bg-card);
   padding: 4px 6px;
   margin-bottom: 8px;
   scrollbar-width: thin;
@@ -261,7 +384,8 @@ a:hover { text-decoration: underline; }
 .import-summary {
   font-size: 12px;
   padding: 7px 10px;
-  background: rgba(124, 106, 245, 0.1);
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
   border-radius: var(--radius-sm);
   margin-bottom: 8px;
   color: var(--color-text);

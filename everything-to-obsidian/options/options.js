@@ -12,6 +12,7 @@ const newDirArea   = document.getElementById('new-dir-area');
 const inputNewDir  = document.getElementById('input-new-dir');
 const btnCreateDir = document.getElementById('btn-create-dir');
 const saveHint     = document.getElementById('save-hint');
+const btnCancelDir = document.getElementById('btn-cancel-dir');
 
 const NEW_DIR_VALUE = '__new__';
 let currentDirHandle = null;
@@ -21,6 +22,15 @@ async function init() {
   btnPickDir.addEventListener('click', onPickDir);
   selectSubdir.addEventListener('change', onSelectChange);
   btnCreateDir.addEventListener('click', onCreateDir);
+  document.getElementById('btn-done').addEventListener('click', () => window.close());
+  btnCancelDir.addEventListener('click', () => {
+    // 隐藏新建区域，下拉框切回第一个有效值
+    newDirArea.style.display = 'none';
+    inputNewDir.value = '';
+    // 找到第一个非 __new__ 的选项并选中
+    const firstValid = [...selectSubdir.options].find(o => o.value && o.value !== '__new__');
+    if (firstValid) selectSubdir.value = firstValid.value;
+  });
 }
 
 // ─── 授权目录显示 & 子目录列表加载 ───────────────────────────
@@ -121,7 +131,6 @@ async function onSelectChange() {
 
   if (val && val !== '') {
     await chrome.storage.sync.set({ subDir: val });
-    showSaved();
   }
 }
 

@@ -28,9 +28,8 @@ const btnStartImport= document.getElementById('btn-start-import');
 // ─── 状态 ─────────────────────────────────────────────────────
 let dirHandle = null;
 let bookmarkTreeData = null;
-let selectedFolderIds = new Set();  // 勾选的文件夹 id
-let selectedLeafUrls  = new Map();  // 单独勾选的叶子：url → bookmark 对象
 let cancelSignal = { cancelled: false };
+// 注意：选中状态完全由 DOM checkbox 驱动，不再维护 selectedFolderIds / selectedLeafUrls
 
 // ─── 初始化 ───────────────────────────────────────────────────
 async function init() {
@@ -165,27 +164,37 @@ function renderTree(nodes) {
 }
 
 function countBookmarks(node) {
-  if (node.url) return 1;
+  // 只统计有效的叶子书签（必须有 url，且 url 不为空字符串）
+  if (node.url && node.url.trim() !== '') return 1;
+  if (node.url) return 0; // url 为空字符串的无效书签不计
   return (node.children || []).reduce((sum, c) => sum + countBookmarks(c), 0);
 }
 
-function buildFolderNode(node, parentPath = []) {
-  // ── 书签叶子节点（有 url）──
-  if (node.url) {
+/**
+ * 构建文件夹或叶子节点 DOM
+ * onChildChange: 子节点状态变化时通知父节点重新计算三态
+ */
+function buildFolderNode(node, parentPath = [], onChildChange = null) {
+  // ── 书签叶子节点（有 url，且 url 非空）──
+  if (node.url && node.url.trim() !== '') {
     const leaf = document.createElement('div');
     leaf.className = 'bookmark-leaf';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.className = 'leaf-checkbox';
-    cb.dataset.url = node.url;
+    cb.dataset.url   = node.url;
+    cb.dataset.title = node.title || node.url;
+    cb.dataset.path  = JSON.stringify(parentPath);
 
-    leaf.addEventListener('click', () => {
-      cb.checked = !cb.checked;
-      toggleLeaf(node, parentPath, cb.checked);
-    });
+    const doToggle = (checked) => {
+      toggleLeaf(node, parentPath, checked);
+      onChildChange?.(); // 通知父节点重算三态
+    };
+
+    leaf.addEventListener('click', () => { cb.checked = !cb.checked; doToggle(cb.checked); });
     cb.addEventListener('click', (e) => e.stopPropagation());
-    cb.addEventListener('change', () => toggleLeaf(node, parentPath, cb.checked));
+    cb.addEventListener('change', () => doToggle(cb.checked));
 
     const icon = document.createElement('span');
     icon.className = 'leaf-icon';
@@ -223,7 +232,7 @@ function buildFolderNode(node, parentPath = []) {
   childrenWrap.className = 'folder-children';
   childrenWrap.style.display = 'none';
 
-  const toggle = row.querySelector('.folder-toggle');
+  const toggle   = row.querySelector('.folder-toggle');
   const checkbox = row.querySelector('input[type=checkbox]');
 
   // 展开/折叠箭头
@@ -238,21 +247,51 @@ function buildFolderNode(node, parentPath = []) {
   checkbox.addEventListener('click', (e) => e.stopPropagation());
   checkbox.addEventListener('change', () => {
     toggleSelectionRecursive(node, checkbox.checked);
+    onChildChange?.(); // 通知父节点重算三态
   });
 
   // 整行点击切换勾选
   row.addEventListener('click', () => {
-    const newChecked = !checkbox.checked;
+    // 若当前是半选，整行点击视为"全选"
+    const newChecked = checkbox.indeterminate ? true : !checkbox.checked;
+    checkbox.indeterminate = false;
     checkbox.checked = newChecked;
     toggleSelectionRecursive(node, newChecked);
+    onChildChange?.();
   });
+
+  // 重算本节点三态的函数（子节点变化时调用）—— 只看直接子节点，不递归向下
+  const syncThisCheckbox = () => {
+    // 只取 childrenWrap 的直接子元素（folder-item 或 bookmark-leaf）里的第一个 checkbox
+    const directChildCbs = [];
+    for (const child of childrenWrap.children) {
+      // 文件夹子节点：取 .folder-row 里的 input[data-id]
+      const folderCb = child.querySelector(':scope > .folder-row > input[data-id]');
+      if (folderCb) { directChildCbs.push(folderCb); continue; }
+      // 叶子子节点：取 .leaf-checkbox
+      const leafCb = child.querySelector(':scope > .leaf-checkbox');
+      if (leafCb) directChildCbs.push(leafCb);
+    }
+    if (directChildCbs.length === 0) return;
+
+    const checkedCount       = directChildCbs.filter(c => c.checked && !c.indeterminate).length;
+    const indeterminateCount = directChildCbs.filter(c => c.indeterminate).length;
+    const all  = checkedCount === directChildCbs.length;
+    const none = checkedCount === 0 && indeterminateCount === 0;
+
+    checkbox.indeterminate = !all && !none;
+    checkbox.checked = all;
+
+    onChildChange?.(); // 继续向上冒泡
+    updateSelectedCount();
+  };
 
   // 构建当前文件夹的路径，传给子叶子节点
   const currentPath = node.title ? [...parentPath, node.title] : parentPath;
 
-  // 渲染所有子节点（包括书签叶子）
+  // 渲染所有子节点，把 syncThisCheckbox 传下去作为回调
   for (const child of node.children || []) {
-    const childEl = buildFolderNode(child, currentPath);
+    const childEl = buildFolderNode(child, currentPath, syncThisCheckbox);
     if (childEl) childrenWrap.appendChild(childEl);
   }
 
@@ -262,43 +301,37 @@ function buildFolderNode(node, parentPath = []) {
   return item;
 }
 
-/** 切换单个叶子书签的选中状态 */
-function toggleLeaf(node, parentPath, checked) {
-  if (checked) {
-    selectedLeafUrls.set(node.url, { url: node.url, title: node.title || node.url, path: [...parentPath], tags: [...parentPath] });
-  } else {
-    selectedLeafUrls.delete(node.url);
-  }
+/** 叶子节点切换：仅更新计数（DOM 已由调用方直接设 checked） */
+function toggleLeaf(_node, _parentPath, _checked) {
   updateSelectedCount();
 }
 
 /**
- * 递归勾选/取消节点及其所有子文件夹
- * 同时同步 DOM 中对应 checkbox 的视觉状态
+ * 递归同步 DOM checkbox 状态。
+ * 不通过 URL 全局搜索（有重复URL会误伤），
+ * 而是直接找到当前文件夹对应的 childrenWrap，批量设置其下所有叶子。
  */
 function toggleSelectionRecursive(node, checked) {
-  if (node.url) return; // 跳过书签叶子
+  if (node.url) return;
 
-  // 更新 state
-  if (checked) {
-    selectedFolderIds.add(node.id);
-  } else {
-    selectedFolderIds.delete(node.id);
-  }
-
-  // 同步 DOM checkbox 视觉状态
+  // 找到本文件夹的 DOM 容器（.folder-children）
   const domCheckbox = bookmarkTree.querySelector(`input[data-id="${node.id}"]`);
-  if (domCheckbox) domCheckbox.checked = checked;
-
-  // 递归处理子节点
-  for (const child of node.children || []) {
-    if (!child.url) {
-      // 子文件夹：递归处理
-      toggleSelectionRecursive(child, checked);
-    } else {
-      // 叶子书签：同步 DOM checkbox 视觉状态
-      const leafCb = bookmarkTree.querySelector(`.leaf-checkbox[data-url="${CSS.escape(child.url)}"]`);
-      if (leafCb) leafCb.checked = checked;
+  if (domCheckbox) {
+    domCheckbox.checked = checked;
+    domCheckbox.indeterminate = false;
+    // 找到 childrenWrap：domCheckbox 在 .folder-row 里，.folder-row 的兄弟节点是 .folder-children
+    const folderItem = domCheckbox.closest('.folder-item');
+    const childrenWrap = folderItem?.querySelector(':scope > .folder-children');
+    if (childrenWrap) {
+      // 直接把这个容器里所有后代叶子全部设置（最简单可靠）
+      childrenWrap.querySelectorAll('.leaf-checkbox').forEach(cb => {
+        cb.checked = checked;
+      });
+      // 把所有后代文件夹 checkbox 也同步
+      childrenWrap.querySelectorAll('input[data-id]').forEach(cb => {
+        cb.checked = checked;
+        cb.indeterminate = false;
+      });
     }
   }
 
@@ -306,12 +339,24 @@ function toggleSelectionRecursive(node, checked) {
 }
 
 function updateSelectedCount() {
-  if (!bookmarkTreeData) return;
-  const fromFolders = collectUrlsFromFolders(selectedFolderIds, bookmarkTreeData);
-  // 合并叶子选择，按 url 去重
-  const urlSet = new Set(fromFolders.map(b => b.url));
-  const extra = [...selectedLeafUrls.values()].filter(b => !urlSet.has(b.url));
-  selectedCount.textContent = `已选 ${fromFolders.length + extra.length} 个书签`;
+  if (!bookmarkTree) return;
+  // 直接数 DOM 里所有已勾选的叶子 checkbox（最准确，不依赖 state）
+  const checkedLeafs = bookmarkTree.querySelectorAll('.leaf-checkbox:checked').length;
+  selectedCount.textContent = `已选 ${checkedLeafs} 个书签`;
+}
+
+/**
+ * 从 DOM 中收集所有已勾选的叶子书签，返回导入任务数组
+ * 每个叶子 checkbox 上存有 data-url / data-title / data-path（JSON）
+ */
+function collectCheckedLeafsFromDOM() {
+  const cbs = bookmarkTree.querySelectorAll('.leaf-checkbox:checked');
+  return [...cbs].map(cb => ({
+    url:   cb.dataset.url,
+    title: cb.dataset.title || cb.dataset.url,
+    path:  JSON.parse(cb.dataset.path || '[]'),
+    tags:  JSON.parse(cb.dataset.path || '[]'),
+  }));
 }
 
 function escapeHtml(str) {
@@ -325,11 +370,8 @@ async function onStartImport() {
     return;
   }
 
-  // 合并文件夹来源 + 单独勾选的叶子，按 url 去重
-  const fromFolders = collectUrlsFromFolders(selectedFolderIds, bookmarkTreeData || []);
-  const folderUrlSet = new Set(fromFolders.map(b => b.url));
-  const fromLeafs = [...selectedLeafUrls.values()].filter(b => !folderUrlSet.has(b.url));
-  const bookmarks = [...fromFolders, ...fromLeafs];
+  // 直接从 DOM 收集所有勾选的叶子 checkbox，携带 path 信息
+  const bookmarks = collectCheckedLeafsFromDOM();
 
   if (bookmarks.length === 0) {
     alert('请至少选择一个文件夹或书签');
